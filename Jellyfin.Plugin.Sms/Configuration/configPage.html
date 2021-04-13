@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Sms Notifications</title>
+    </head>
+    <body>
+        <div data-role="page" class="page type-interior pluginConfigurationPage smsNotificationsConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select">
+            <div data-role="content">
+                <div class="content-primary">
+                    <form class="smsNotificationsConfigurationForm">
+                        <div style="height: 0; overflow: hidden"><input type="text" name="fakeusernameremembered" tabindex="-1" /><input type="password" name="fakepasswordremembered" tabindex="-1" /></div>
+                        <div class="selectContainer">
+                            <select is="emby-select" id="selectUser" label="Configure SMS notifications for:"></select>
+                        </div>
+                        <div class="selectContainer">
+                            <select is="emby-select" id="selectSmsProvider" label="Select SMS sending service provider:">
+                                <option value="Clickattel">Clickattel</option>
+                            </select>
+                        </div>
+                        <label class="checkboxContainer">
+                            <input is="emby-checkbox" type="checkbox" id="chkEnableSmsNotifications" />
+                            <span>Enabled</span>
+                        </label>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="text" id="txtPhoneNumber" required="required" label="Phone number to send sms:" />
+                            <div class="fieldDescription">Send sms notification to:</div>
+                        </div>
+                        <div class="inputContainer">
+                            <input is="emby-input" type="text" id="txtApiKey" required="required" label="Sms sending service api key:" />
+                            <div class="fieldDescription">Api key for sms sending service:</div>
+                        </div>
+                        <div>
+                            <button is="emby-button" type="button" class="raised button-cancel block" id="testNotification">
+                                <span>Test Notification</span>
+                            </button>
+                        </div>
+                        <br />
+                        <div>
+                            <button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <script type="text/javascript">
+                (function () {
+                    var pluginId = "47816a0e-e69c-44e0-ac7e-f37b134e088f";
+
+                    function loadUserConfig(page, userId) {
+                        Dashboard.showLoadingMsg();
+
+                        ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                            var smsConfig =
+                                config.Options.filter(function (c) {
+                                    return userId == c.UserId;
+                                })[0] || {};
+
+                            page.querySelector("#chkEnableSmsNotifications").checked = smsConfig.Enabled || false;
+                            $("#txtApiKey", page).val(smsConfig.ApiKey || "");
+                            $("#txtPhoneNumber", page).val(smsConfig.PhoneNumber || "");
+
+                            Dashboard.hideLoadingMsg();
+                        });
+                    }
+
+                    $(".smsNotificationsConfigurationPage")
+                        .on("pageinit", function (event) {
+                            var page = this;
+
+                            $("#selectUser", page).on("change", function () {
+                                loadUserConfig(page, this.value);
+                            });
+
+                            $("#testNotification", page).on("click", function (event) {
+                                Dashboard.showLoadingMsg();
+
+                                var onError = function () {
+                                    alert("There was an error sending the test notification. Please check your notification settings and try again.");
+                                    require(["alert"], function (alert) {
+                                        Dashboard.hideLoadingMsg();
+                                    });
+                                };
+
+                                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                                    if (!config.Options.length) {
+                                        Dashboard.hideLoadingMsg();
+                                        require(["alert"], function (alert) {
+                                            alert("Please configure and save at least one notification account.");
+                                        });
+                                    }
+
+                                    config.Options.map(function (c) {
+                                        ApiClient.ajax({
+                                            type: "POST",
+                                            url: ApiClient.getUrl("Notification/Sms/Test/" + c.UserId),
+                                        }).then(function () {
+                                            Dashboard.hideLoadingMsg();
+                                        }, onError);
+                                    });
+                                });
+                            });
+                        })
+                        .on("pageshow", function (event) {
+                            Dashboard.showLoadingMsg();
+
+                            var page = this;
+
+                            ApiClient.getUsers().then(function (users) {
+                                $("#selectUser", page)
+                                    .html(
+                                        users.map(function (user) {
+                                            return '<option value="' + user.Id + '">' + user.Name + "</option>";
+                                        })
+                                    )
+                                    .trigger("change");
+                            });
+
+                            Dashboard.hideLoadingMsg();
+                        });
+
+                    $(".smsNotificationsConfigurationForm").on("submit", function (e) {
+                        Dashboard.showLoadingMsg();
+
+                        var form = this;
+
+                        ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                            var userId = $("#selectUser", form).val();
+
+                            var smsConfig = config.Options.filter(function (c) {
+                                return userId === c.UserId;
+                            })[0];
+
+                            if (!smsConfig) {
+                                smsConfig = {};
+                                config.Options.push(smsConfig);
+                            }
+
+                            smsConfig.UserId = userId;
+
+                            smsConfig.Enabled = form.querySelector("#chkEnableSmsNotifications").checked;
+                            smsConfig.ApiKey = $("#txtApiKey", form).val();
+                            smsConfig.PhoneNumber = $("#txtPhoneNumber", form).val();
+
+                            ApiClient.updatePluginConfiguration(pluginId, config).then(Dashboard.processPluginConfigurationUpdateResult);
+                        });
+
+                        return false;
+                    });
+                })();
+            </script>
+        </div>
+    </body>
+</html>

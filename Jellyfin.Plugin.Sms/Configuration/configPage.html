@@ -52,7 +52,7 @@
                         ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                             var smsConfig =
                                 config.Options.filter(function (c) {
-                                    return userId == c.UserId;
+                                    return userId === c.UserId;
                                 })[0] || {};
 
                             page.querySelector("#chkEnableSmsNotifications").checked = smsConfig.Enabled || false;

@@ -1,12 +1,11 @@
 using System;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Mime;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Data.Entities;
 using Jellyfin.Plugin.Sms.Configuration;
+using Jellyfin.Plugin.Sms.Providers;
 using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Notifications;
 using Microsoft.Extensions.Logging;
@@ -16,12 +15,12 @@ namespace Jellyfin.Plugin.Sms
     public class Notifier : INotificationService
     {
         private readonly ILogger<Notifier> _logger;
-        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly HttpClient _httpClient;
 
         public Notifier(ILogger<Notifier> logger, IHttpClientFactory httpClientFactory)
         {
             _logger = logger;
-            _httpClientFactory = httpClientFactory;
+            _httpClient = httpClientFactory.CreateClient(NamedClient.Default);
         }
 
         public bool IsEnabledForUser(User user)
@@ -42,35 +41,16 @@ namespace Jellyfin.Plugin.Sms
         {
             _logger.LogDebug("Sending sms notification...");
             var options = GetOptions(notification.User);
-            var httpRequest = new HttpRequestMessage();
 
-            if (options.Provider == Providers.Clickattel)
-            {
-                _logger.LogDebug("Sending sms notification using Clickattel provider");
+            INotificationProvider provider = new ProvidersFactory(options, notification.Name).GetProvider();
 
-                var message = $"{{\"messages\": [{{\"channel\": \"sms\",\"to\": \"{options.PhoneNumber}\",\"content\": \"{notification.Name}\"}}]}}";
+            _logger.LogDebug($"Sending sms notification using {nameof(provider)}");
 
-                httpRequest = new HttpRequestMessage()
-                {
-                    RequestUri = new Uri("https://platform.clickatell.com/v1/message"),
-                    Method = HttpMethod.Post,
-                };
+            var httpRequestMessage = provider.CreateHttpRequestMessage();
+            using var response = await _httpClient.SendAsync(httpRequestMessage, cancellationToken).ConfigureAwait(false);
 
-                httpRequest.Content = new StringContent(
-                    message,
-                    Encoding.UTF8,
-                    MediaTypeNames.Application.Json);
-
-                httpRequest.Headers.TryAddWithoutValidation("Authorization", options.ApiKey);
-            }
-
-            var httpClient = _httpClientFactory.CreateClient(NamedClient.Default);
-
-            using (var response = await httpClient.SendAsync(httpRequest).ConfigureAwait(false))
-            {
-                _logger.LogDebug("Sms notification sent.");
-                _logger.LogDebug("Sms notification service response: {0}", response.StatusCode.ToString());
-            }
+            _logger.LogDebug("Sms notification sent.");
+            _logger.LogDebug("Sms notification service response: {0}", response.StatusCode.ToString());
         }
 
         private static bool IsValid(SmsOptions options)

@@ -1,13 +1,13 @@
-using Jellyfin.Plugin.Sms.Configuration;
-using MediaBrowser.Common.Net;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Mime;
 using System.Text;
 using System.Threading.Tasks;
+using Jellyfin.Plugin.Sms.Providers;
+using MediaBrowser.Common.Net;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Jellyfin.Plugin.Sms.Api
 {
@@ -16,11 +16,11 @@ namespace Jellyfin.Plugin.Sms.Api
     [Produces(MediaTypeNames.Application.Json)]
     public class SmsNotificationsController : ControllerBase
     {
-        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly HttpClient _httpClient;
 
         public SmsNotificationsController(IHttpClientFactory httpClientFactory)
         {
-            _httpClientFactory = httpClientFactory;
+            _httpClient = httpClientFactory.CreateClient(NamedClient.Default);
         }
 
         [HttpPost("Test/{userId}")]
@@ -34,28 +34,11 @@ namespace Jellyfin.Plugin.Sms.Api
                 return BadRequest("Options are null");
             }
 
-            var httpRequest = new HttpRequestMessage();
+            INotificationProvider provider = new ProvidersFactory(options, "notification.Name").GetProvider();
 
-            if (options.Provider == Providers.Clickattel)
-            {
-                var message = $"{{\"messages\": [{{\"channel\": \"sms\",\"to\": \"{options.PhoneNumber}\",\"content\": \"Test notification from Jellyfin\"}}]}}";
+            var httpRequestMessage = provider.CreateHttpRequestMessage();
+            using var response = await _httpClient.SendAsync(httpRequestMessage).ConfigureAwait(false);
 
-                httpRequest = new HttpRequestMessage()
-                {
-                    RequestUri = new Uri("https://platform.clickatell.com/v1/message"),
-                    Method = HttpMethod.Post,
-                };
-
-                httpRequest.Content = new StringContent(
-                    message,
-                    Encoding.UTF8,
-                    MediaTypeNames.Application.Json);
-
-                httpRequest.Headers.TryAddWithoutValidation("Authorization", options.ApiKey);
-            }
-
-            var httpClient = _httpClientFactory.CreateClient(NamedClient.Default);
-            using var responseMessage = await httpClient.SendAsync(httpRequest).ConfigureAwait(false);
             return NoContent();
         }
     }

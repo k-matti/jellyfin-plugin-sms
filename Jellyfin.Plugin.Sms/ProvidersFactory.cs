@@ -1,25 +1,23 @@
 using System;
-using Jellyfin.Plugin.Sms.Configuration;
+using System.Net.Http;
 using Jellyfin.Plugin.Sms.Providers;
 
 namespace Jellyfin.Plugin.Sms
 {
     public class ProvidersFactory
     {
-        private readonly SmsOptions _options;
-        private readonly string _content;
+        private readonly HttpClient _httpClient;
 
-        public ProvidersFactory(SmsOptions options, string content)
+        public ProvidersFactory(HttpClient httpClient)
         {
-            _options = options;
-            _content = content;
+            _httpClient = httpClient;
         }
 
-        public INotificationProvider GetProvider()
+        public INotificationProvider GetProvider(AvailableProviders selectedProvider, string apiKey)
         {
-            INotificationProvider provider = _options.Provider switch
+            INotificationProvider provider = selectedProvider switch
             {
-                AvailableProviders.Clickattel => new ClickatellProvider(_options.PhoneNumber, _content, _options.ApiKey),
+                AvailableProviders.Clickattel => new ClickatellProvider(_httpClient, apiKey),
                 _ => throw new ArgumentOutOfRangeException()
             };
 

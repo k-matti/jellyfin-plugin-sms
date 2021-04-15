@@ -30,11 +30,6 @@ namespace Jellyfin.Plugin.Sms
             return options != null && IsValid(options) && options.Enabled;
         }
 
-        private static SmsOptions GetOptions(User user)
-        {
-            return Plugin.Instance?.Configuration.Options.FirstOrDefault(i => string.Equals(i.UserId, user.Id.ToString(), StringComparison.OrdinalIgnoreCase));
-        }
-
         public string Name => Plugin.Instance.Name;
 
         public async Task SendNotification(UserNotification notification, CancellationToken cancellationToken)
@@ -42,12 +37,11 @@ namespace Jellyfin.Plugin.Sms
             _logger.LogDebug("Sending sms notification...");
             var options = GetOptions(notification.User);
 
-            INotificationProvider provider = new ProvidersFactory(options, notification.Name).GetProvider();
+            INotificationProvider provider = new ProvidersFactory(_httpClient).GetProvider(options.Provider, options.ApiKey);
 
             _logger.LogDebug($"Sending sms notification using {nameof(provider)}");
 
-            var httpRequestMessage = provider.CreateHttpRequestMessage();
-            using var response = await _httpClient.SendAsync(httpRequestMessage, cancellationToken).ConfigureAwait(false);
+            using var response = await provider.SendMessage(options.PhoneNumber, notification.Name);
 
             _logger.LogDebug("Sms notification sent.");
             _logger.LogDebug("Sms notification service response: {0}", response.StatusCode.ToString());
@@ -56,6 +50,11 @@ namespace Jellyfin.Plugin.Sms
         private static bool IsValid(SmsOptions options)
         {
             return !string.IsNullOrEmpty(options.ApiKey);
+        }
+
+        private static SmsOptions GetOptions(User user)
+        {
+            return Plugin.Instance?.Configuration.Options.FirstOrDefault(i => string.Equals(i.UserId, user.Id.ToString(), StringComparison.OrdinalIgnoreCase));
         }
     }
 }

@@ -1,36 +1,22 @@
-using System;
 using System.Net.Http;
-using System.Net.Mime;
-using System.Text;
+using System.Threading.Tasks;
 
 namespace Jellyfin.Plugin.Sms.Providers
 {
-    public class ClickatellProvider : INotificationProvider
+    public class ClickatellProvider : Provider, INotificationProvider
     {
-        private readonly string _message;
-        private readonly string _apiKey;
-        private const string Url = "https://platform.clickatell.com/v1/message";
+        private const string Url = "https://platform.clickatell.com/v1/message"; 
 
-        public ClickatellProvider(string phoneNumber, string content, string apiKey)
+        public ClickatellProvider(HttpClient httpClient,  string apiKey): base(httpClient, apiKey)
         {
-            _message = $"{{\"messages\": [{{\"channel\": \"sms\",\"to\": \"{phoneNumber}\",\"content\": \"{content}\"}}]}}";
-            _apiKey = apiKey;
         }
 
-        public HttpRequestMessage CreateHttpRequestMessage()
+        public async Task<HttpResponseMessage> SendMessage(string phoneNumber, string content)
         {
-            var httpRequest = new HttpRequestMessage
-            {
-                RequestUri = new Uri(Url),
-                Method = HttpMethod.Post,
-                Content = new StringContent(
-                    _message,
-                    Encoding.UTF8,
-                    MediaTypeNames.Application.Json)
-            };
+            var message = $"{{\"messages\": [{{\"channel\": \"sms\",\"to\": \"{phoneNumber}\",\"content\": \"{content}\"}}]}}";
 
-            httpRequest.Headers.TryAddWithoutValidation("Authorization", _apiKey);
-            return httpRequest;
+            var httpRequest = CreateHttpRequestMessage(Url, message);
+            return await SendAsync(httpRequest);
         }
     }
 }

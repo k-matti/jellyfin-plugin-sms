@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Mime;
-using System.Text;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.Sms.Providers;
 using MediaBrowser.Common.Net;
@@ -34,10 +33,9 @@ namespace Jellyfin.Plugin.Sms.Api
                 return BadRequest("Options are null");
             }
 
-            INotificationProvider provider = new ProvidersFactory(options, "notification.Name").GetProvider();
+            INotificationProvider provider = new ProvidersFactory(_httpClient).GetProvider(options.Provider, options.ApiKey);
 
-            var httpRequestMessage = provider.CreateHttpRequestMessage();
-            using var response = await _httpClient.SendAsync(httpRequestMessage).ConfigureAwait(false);
+            using var response = await provider.SendMessage(options.PhoneNumber, "Test notification from Jellyfin");
 
             return NoContent();
         }
